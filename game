@@ -1,0 +1,187 @@
+import pygame
+import random
+import math
+
+pygame.init()
+screen = pygame.display.set_mode((800, 600))
+pygame.display.set_caption("Agar.io")
+clock = pygame.time.Clock()
+
+# игрок
+player_x, player_y = 400, 300
+player_r = 20
+player_score = 0
+
+# еда
+foods = []
+for i in range(50):
+    foods.append({
+        'x': random.randint(10, 790),
+        'y': random.randint(10, 590),
+        'r': random.randint(3, 8)
+    })
+
+# враги
+enemies = []
+for i in range(8):
+    enemies.append({
+        'x': random.randint(50, 750),
+        'y': random.randint(50, 550),
+        'r': random.randint(15, 40),
+        'speed': random.uniform(0.1, 0.5),
+        'target_x': random.randint(50, 750),
+        'target_y': random.randint(50, 550),
+        'target_timer': 0
+    })
+
+game_over = False
+game_won = False
+
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_r and (game_over or game_won):
+                # перезапуск игры
+                player_x, player_y = 400, 300
+                player_r = 20
+                player_score = 0
+                game_over = False
+                game_won = False
+
+                foods = []
+                for i in range(50):
+                    foods.append({
+                        'x': random.randint(10, 790),
+                        'y': random.randint(10, 590),
+                        'r': random.randint(3, 8)
+                    })
+
+                enemies = []
+                for i in range(8):
+                    enemies.append({
+                        'x': random.randint(50, 750),
+                        'y': random.randint(50, 550),
+                        'r': random.randint(15, 40),
+                        'speed': random.uniform(0.1, 0.5),
+                        'target_x': random.randint(50, 750),
+                        'target_y': random.randint(50, 550),
+                        'target_timer': 0
+                    })
+
+    if not game_over and not game_won:
+        # движение игрока к курсору
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        dx = mouse_x - player_x
+        dy = mouse_y - player_y
+        dist = max(1, math.sqrt(dx * dx + dy * dy))
+        speed = 4 * (20 / player_r)
+
+        player_x += dx / dist * speed
+        player_y += dy / dist * speed
+
+        # ограничение движения игрока
+        player_x = max(player_r, min(800 - player_r, player_x))
+        player_y = max(player_r, min(600 - player_r, player_y))
+
+        # поедание еды
+        for food in foods[:]:
+            distance = math.sqrt((player_x - food['x']) ** 2 + (player_y - food['y']) ** 2)
+            if distance < player_r:
+                player_r += food['r'] * 0.08
+                player_score += 1
+                foods.remove(food)
+                foods.append({
+                    'x': random.randint(10, 790),
+                    'y': random.randint(10, 590),
+                    'r': random.randint(3, 8)
+                })
+
+        # движение врагов
+        for enemy in enemies:
+            enemy['target_timer'] += 1
+
+            if enemy['target_timer'] > random.randint(120, 300):
+                enemy['target_x'] = random.randint(50, 750)
+                enemy['target_y'] = random.randint(50, 550)
+                enemy['target_timer'] = 0
+
+            dx = enemy['target_x'] - enemy['x']
+            dy = enemy['target_y'] - enemy['y']
+            dist = max(1, math.sqrt(dx * dx + dy * dy))
+
+            enemy['x'] += (dx / dist) * enemy['speed']
+            enemy['y'] += (dy / dist) * enemy['speed']
+
+            enemy['x'] = max(enemy['r'], min(800 - enemy['r'], enemy['x']))
+            enemy['y'] = max(enemy['r'], min(600 - enemy['r'], enemy['y']))
+
+        # взаимодействие с врагами
+        for enemy in enemies[:]:
+            distance = math.sqrt((player_x - enemy['x']) ** 2 + (player_y - enemy['y']) ** 2)
+            if distance < player_r + enemy['r']:
+                if player_r > enemy['r'] * 1.1:
+                    player_r += enemy['r'] * 0.3
+                    player_score += 5
+                    enemies.remove(enemy)
+                    enemies.append({
+                        'x': random.randint(50, 750),
+                        'y': random.randint(50, 550),
+                        'r': random.randint(15, 40),
+                        'speed': random.uniform(0.1, 0.5),
+                        'target_x': random.randint(50, 750),
+                        'target_y': random.randint(50, 550),
+                        'target_timer': 0
+                    })
+                elif enemy['r'] > player_r * 1.1:
+                    game_over = True
+
+        # проверка на победу (700 очков)
+        if player_score >= 700:
+            game_won = True
+
+    # отрисовка
+    screen.fill((0, 0, 0))
+
+    if not game_over and not game_won:
+        # рисуем еду
+        for food in foods:
+            pygame.draw.circle(screen, (255, 255, 255), (int(food['x']), int(food['y'])), food['r'])
+
+        # рисуем врагов
+        for enemy in enemies:
+            pygame.draw.circle(screen, (255, 0, 0), (int(enemy['x']), int(enemy['y'])), int(enemy['r']))
+
+        # рисуем игрока
+        pygame.draw.circle(screen, (0, 255, 0), (int(player_x), int(player_y)), int(player_r))
+
+        # отображаем счёт и размер
+        font = pygame.font.Font(None, 36)
+        score_text = font.render(f"Score: {player_score}/700", True, (255, 255, 255))
+        size_text = font.render(f"Size: {int(player_r)}", True, (255, 255, 255))
+        screen.blit(score_text, (10, 10))
+        screen.blit(size_text, (10, 50))
+
+    else:
+        # экран завершения
+        font_large = pygame.font.Font(None, 72)
+        font_small = pygame.font.Font(None, 36)
+
+        if game_won:
+            text = font_large.render("YOU WIN!", True, (255, 255, 255))
+        else:
+            text = font_large.render("GAME OVER", True, (255, 255, 255))
+
+        score_text = font_small.render(f"Final Score: {player_score}", True, (255, 255, 255))
+        restart_text = font_small.render("Press R to restart", True, (255, 255, 255))
+
+        screen.blit(text, (400 - text.get_width() // 2, 250))
+        screen.blit(score_text, (400 - score_text.get_width() // 2, 320))
+        screen.blit(restart_text, (400 - restart_text.get_width() // 2, 360))
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
